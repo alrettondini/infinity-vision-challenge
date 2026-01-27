@@ -1,0 +1,7 @@
+{
+  "image_1_path": "products/product_a.jpg",
+  "image_2_path": "products/product_b.jpg",
+  "threshold": 11000,
+  "output_dir": "outputs",
+  "output_filename": "result.png"
+}
