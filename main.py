@@ -4,7 +4,9 @@ import sys
 
 import cv2
 import numpy as np
-from processor import transform, euclidian_distance
+from processor import euclidian_distance, align_images
+
+IMAGE_DIMENSIONS = (256, 256)
 
 def read_config(path: str):
     """
@@ -23,14 +25,33 @@ def main():
     img1 = cv2.imread(cfg["image_1_path"])
     img2 = cv2.imread(cfg["image_2_path"])
 
-    # Aplica transformações
-    img1 = transform(img1)
-    img2 = transform(img2)
+    # Aplica grayscale nas imagens
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+
+    # Alinha as imagens com ORB + Homografia
+    img1_aligned = align_images(img1, img2)
+
+    # Aplica resize nas imagens para 256x256
+    img1 = cv2.resize(img1_aligned, IMAGE_DIMENSIONS, interpolation=cv2.INTER_AREA)
+    img2 = cv2.resize(img2, IMAGE_DIMENSIONS, interpolation=cv2.INTER_AREA)
+
+    # Blur para redução de ruído
+    img1 = cv2.GaussianBlur(img1, (5, 5), 0)
+    img2 = cv2.GaussianBlur(img2, (5, 5), 0)
 
     # Calcula distância euclidiana
     distance = euclidian_distance(img1, img2)
 
     print(f"Distância: {distance:.4f}")
+
+    threshold = cfg.get("threshold", 0.6)
+    print(f"Threshold Definido:  {threshold:.4f}")
+
+    if distance < threshold:
+        print("\n>>> RESULTADO: MESMO PRODUTO <<<")
+    else:
+        print("\n>>> RESULTADO: PRODUTOS DIFERENTES <<<")
 
     # Caso não exista, cria diretório de saída
     out_dir = Path(cfg["output_dir"])
