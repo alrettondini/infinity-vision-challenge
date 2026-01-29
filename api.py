@@ -1,14 +1,19 @@
+import uuid
 from pathlib import Path
 from typing import List
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from processor import align_images, euclidian_distance, IMAGE_DIMENSIONS
+from db import CompareResult, get_db 
 
 PRODUCTS_DIR = Path("products")
+OUTPUTS_DIR = Path("outputs")
+OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Product Compare API", version="1.0.0")
 
@@ -30,6 +35,7 @@ class CompareResponse(BaseModel):
     distance: float
     threshold: float
     same_product: bool
+    output_image: str
 
 
 def _safe_product_path(filename: str):
@@ -91,7 +97,7 @@ def list_products():
 
 
 @app.post("/compare", response_model=CompareResponse)
-def compare(req: CompareRequest):
+def compare(req: CompareRequest, db: Session = Depends(get_db)):
     # Carrega imagens
     img1_bgr = _load_bgr_image(req.product_1)
     img2_bgr = _load_bgr_image(req.product_2)
@@ -103,10 +109,41 @@ def compare(req: CompareRequest):
     distance = euclidian_distance(img1, img2)
     same = distance < req.threshold
 
+    # Gera Imagem Concatenada
+    concat_img = np.concatenate([img1, img2], axis=1)
+    
+    # Gera um nome único para não sobrescrever
+    output_filename = f"compare_{uuid.uuid4().hex}.png"
+    output_path = OUTPUTS_DIR / output_filename
+    
+    # Salva no disco
+    cv2.imwrite(str(output_path), concat_img)
+
+    # Salva no Banco de Dados
+    db_record = CompareResult(
+        product_1_path=str(_safe_product_path(req.product_1)),
+        product_2_path=str(_safe_product_path(req.product_2)),
+        output_image_path=str(output_path),
+        distance=distance,
+        is_same=same
+    )
+    db.add(db_record)
+    db.commit()
+    db.refresh(db_record)
+
     return CompareResponse(
         product_1=req.product_1,
         product_2=req.product_2,
         distance=distance,
         threshold=req.threshold,
         same_product=same,
+        output_image=str(output_path)
     )
+
+@app.get("/history")
+def list_history(db: Session = Depends(get_db)):
+    """
+    Lista todas as imagens salvas anteriormente no banco de dados.
+    """
+    records = db.query(CompareResult).all()
+    return records

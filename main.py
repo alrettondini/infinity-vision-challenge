@@ -4,9 +4,7 @@ import sys
 
 import cv2
 import numpy as np
-from processor import euclidian_distance, align_images
-
-IMAGE_DIMENSIONS = (256, 256)
+from processor import euclidian_distance, align_images, IMAGE_DIMENSIONS
 
 def read_config(path: str):
     """
@@ -24,6 +22,12 @@ def main():
     # Lê imagens fornecidas pela config
     img1 = cv2.imread(cfg["image_1_path"])
     img2 = cv2.imread(cfg["image_2_path"])
+
+    # Validação de leitura
+    if img1 is None:
+        raise FileNotFoundError(f"Não foi possível carregar a imagem 1: {cfg['image_1_path']}")
+    if img2 is None:
+        raise FileNotFoundError(f"Não foi possível carregar a imagem 2: {cfg['image_2_path']}")
 
     # Aplica grayscale nas imagens
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
@@ -45,7 +49,7 @@ def main():
 
     print(f"Distância: {distance:.4f}")
 
-    threshold = cfg.get("threshold", 0.6)
+    threshold = cfg.get("threshold")
     print(f"Threshold Definido:  {threshold:.4f}")
 
     if distance < threshold:
